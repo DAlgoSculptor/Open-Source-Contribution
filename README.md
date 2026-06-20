@@ -1,4 +1,4 @@
-# Cluely Clone
+# Open-Source-Contribution
 
 A transparent Electron overlay for live interview assistance. It listens to questions via your microphone, transcribes them with OpenAI Whisper, and generates resume-aware answers with GPT — all in a frameless overlay that stays on top and is hidden from screen sharing.
 
