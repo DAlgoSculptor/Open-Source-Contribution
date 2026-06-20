@@ -6,6 +6,9 @@ let whisperTranscribing = false;
 let lastTranscript = '';
 let stream = null;
 
+const STORAGE_KEY_API = 'cluely-openai-api-key';
+const STORAGE_KEY_RESUME = 'cluely-resume-text';
+
 const startBtn = document.getElementById('start-interview');
 const stopBtn = document.getElementById('stop-interview');
 const answerContainer = document.getElementById('answer-container');
@@ -18,6 +21,28 @@ const controlsSection = document.querySelector('.controls-section');
 const micToggleBtn = document.getElementById('mic-toggle');
 const micIcon = document.getElementById('mic-icon');
 const answerOuter = document.getElementById('answer-outer');
+
+function loadSavedSettings() {
+  const savedKey = localStorage.getItem(STORAGE_KEY_API);
+  const savedResume = localStorage.getItem(STORAGE_KEY_RESUME);
+  if (savedKey) apiKeyInput.value = savedKey;
+  if (savedResume) resumeInput.value = savedResume;
+}
+
+function saveSettings() {
+  localStorage.setItem(STORAGE_KEY_API, apiKeyInput.value.trim());
+  localStorage.setItem(STORAGE_KEY_RESUME, resumeInput.value.trim());
+}
+
+function getSupportedMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/mp4'
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+}
 
 function setStatus(text, highlight) {
   statusIndicator.innerText = text;
@@ -51,6 +76,15 @@ function showAnswerContainer(show) {
   answerOuter.style.display = show ? 'flex' : 'none';
 }
 
+async function parseApiError(response) {
+  try {
+    const data = await response.json();
+    return data.error?.message || response.statusText;
+  } catch {
+    return response.statusText;
+  }
+}
+
 async function sendToWhisper(blob, apiKey) {
   setStatus('Transcribing...', '');
   const formData = new FormData();
@@ -59,12 +93,13 @@ async function sendToWhisper(blob, apiKey) {
   try {
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`
-      },
+      headers: { Authorization: `Bearer ${apiKey}` },
       body: formData
     });
-    if (!response.ok) throw new Error('Whisper API error');
+    if (!response.ok) {
+      const message = await parseApiError(response);
+      throw new Error(message);
+    }
     const data = await response.json();
     return data.text;
   } catch (err) {
@@ -81,17 +116,20 @@ async function sendToGPT(question, resume, apiKey) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: question }
         ]
       })
     });
-    if (!response.ok) throw new Error('OpenAI GPT error');
+    if (!response.ok) {
+      const message = await parseApiError(response);
+      throw new Error(message);
+    }
     const data = await response.json();
     return data.choices[0].message.content.trim();
   } catch (err) {
@@ -101,7 +139,7 @@ async function sendToGPT(question, resume, apiKey) {
 }
 
 async function processAudioChunk(blob) {
-  if (whisperTranscribing) return; // avoid overlapping
+  if (whisperTranscribing) return;
   whisperTranscribing = true;
   const apiKey = apiKeyInput.value.trim();
   const resume = resumeInput.value.trim();
@@ -114,8 +152,7 @@ async function processAudioChunk(blob) {
   if (transcript && transcript !== lastTranscript) {
     lastTranscript = transcript;
     const answer = await sendToGPT(transcript, resume, apiKey);
-    if (answer) answerContainer.innerText = answer;
-    else answerContainer.innerText = 'No answer.';
+    answerContainer.innerText = answer || 'No answer.';
     setStatus('Ready. Press spacebar to record.', '');
   } else if (!transcript) {
     answerContainer.innerText = 'No speech detected.';
@@ -147,25 +184,40 @@ function handleSpacebar(e) {
   if (!isInterviewing) return;
   if (e.code === 'Space') {
     e.preventDefault();
-    if (!isRecording) {
-      startRecording();
-    } else {
-      stopRecording();
-    }
+    if (!isRecording) startRecording();
+    else stopRecording();
+  }
+}
+
+function stopInterview() {
+  isInterviewing = false;
+  isRecording = false;
+  setStatus('Interview stopped.', '');
+  startBtn.style.display = 'inline-block';
+  stopBtn.style.display = 'none';
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if (stream) {
+    stream.getTracks().forEach((track) => track.stop());
+    stream = null;
+  }
+  window.removeEventListener('keydown', handleSpacebar);
+  answerContainer.innerText = 'Interview stopped.';
+  controlsSection.style.display = 'flex';
+  showAnswerContainer(false);
+  setMicActive(false);
+  if (window.electronAPI?.setOverlayMode) {
+    window.electronAPI.setOverlayMode(false);
   }
 }
 
 micToggleBtn.onclick = () => {
   if (!isInterviewing) return;
-  if (!isRecording) {
-    startRecording();
-  } else {
-    stopRecording();
-  }
+  if (!isRecording) startRecording();
+  else stopRecording();
 };
 
 startBtn.onclick = async () => {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  if (!navigator.mediaDevices?.getUserMedia) {
     setStatus('Microphone access not supported.', 'error');
     return;
   }
@@ -175,9 +227,19 @@ startBtn.onclick = async () => {
     setStatus('Please enter your OpenAI API key and paste your resume.', 'error');
     return;
   }
-  if (window.electronAPI && window.electronAPI.setOverlayMode) {
+
+  saveSettings();
+
+  const mimeType = getSupportedMimeType();
+  if (!mimeType) {
+    setStatus('No supported audio format on this device.', 'error');
+    return;
+  }
+
+  if (window.electronAPI?.setOverlayMode) {
     window.electronAPI.setOverlayMode(true);
   }
+
   startBtn.style.display = 'none';
   stopBtn.style.display = 'inline-block';
   setStatus('Ready. Press spacebar to record.', '');
@@ -186,22 +248,18 @@ startBtn.onclick = async () => {
   lastTranscript = '';
   controlsSection.style.display = 'none';
   showAnswerContainer(true);
-  answerContainer.style.maxHeight = '80vh';
-  answerContainer.style.minHeight = '80px';
   setMicActive(false);
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
     audioChunks = [];
     mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
+      if (event.data.size > 0) audioChunks.push(event.data);
     };
     mediaRecorder.onstop = async () => {
       if (audioChunks.length > 0 && isInterviewing) {
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        const blob = new Blob(audioChunks, { type: mimeType.split(';')[0] });
         audioChunks = [];
         await processAudioChunk(blob);
       }
@@ -209,40 +267,25 @@ startBtn.onclick = async () => {
     window.addEventListener('keydown', handleSpacebar);
   } catch (err) {
     setStatus('Mic error: ' + err.message, 'error');
-    isInterviewing = false;
+    stopInterview();
     startBtn.style.display = 'inline-block';
     stopBtn.style.display = 'none';
-    if (window.electronAPI && window.electronAPI.setOverlayMode) {
-      window.electronAPI.setOverlayMode(false);
-    }
   }
 };
 
-stopBtn.onclick = () => {
-  isInterviewing = false;
-  isRecording = false;
-  setStatus('Interview stopped.', '');
-  startBtn.style.display = 'inline-block';
-  stopBtn.style.display = 'none';
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-  }
-  window.removeEventListener('keydown', handleSpacebar);
-  answerContainer.innerText = 'Interview stopped.';
-  controlsSection.style.display = 'flex';
-  showAnswerContainer(false);
-  setMicActive(false);
-  if (window.electronAPI && window.electronAPI.setOverlayMode) {
-    window.electronAPI.setOverlayMode(false);
-  }
-};
+stopBtn.onclick = stopInterview;
 
 closeBtn.onclick = () => {
-  overlayContainer.style.display = 'none';
-  setMicActive(false);
+  if (isInterviewing) stopInterview();
+  if (window.electronAPI?.hideWindow) {
+    window.electronAPI.hideWindow();
+  } else {
+    overlayContainer.style.display = 'none';
+  }
 };
 
-// On load, hide answer container
-showAnswerContainer(false); 
+apiKeyInput.addEventListener('change', saveSettings);
+resumeInput.addEventListener('change', saveSettings);
+
+loadSavedSettings();
+showAnswerContainer(false);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, session } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -13,23 +13,26 @@ function createWindow() {
     skipTaskbar: true,
     hasShadow: false,
     resizable: false,
-    focusable: true, // Start as focusable
+    focusable: true,
     type: 'panel',
     acceptFirstMouse: true,
+    icon: path.join(__dirname, 'build-icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true
     }
   });
+
   mainWindow.setContentProtection(true);
   mainWindow.setIgnoreMouseEvents(false);
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   mainWindow.loadFile('index.html');
+
   if (process.platform === 'darwin') app.dock.hide();
 
-  // IPC handlers for overlay mode
-  ipcMain.on('set-overlay-mode', (event, enable) => {
+  ipcMain.on('set-overlay-mode', (_event, enable) => {
+    if (!mainWindow) return;
     if (enable) {
       mainWindow.setFocusable(false);
       mainWindow.setIgnoreMouseEvents(true, { forward: true });
@@ -38,27 +41,41 @@ function createWindow() {
       mainWindow.setIgnoreMouseEvents(false);
     }
   });
+
+  ipcMain.on('hide-window', () => {
+    if (mainWindow) mainWindow.hide();
+  });
+
+  ipcMain.on('quit-app', () => {
+    app.quit();
+  });
 }
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const allowed = ['media', 'microphone', 'audioCapture'].includes(permission);
+    callback(allowed);
+  });
+
   createWindow();
-  // Global shortcut to toggle overlay (improved)
+
   globalShortcut.register('CommandOrControl+Shift+O', () => {
+    if (!mainWindow) return;
     if (!mainWindow.isVisible()) {
       mainWindow.show();
-      // Always restore to focusable mode when shown
+      mainWindow.setFocusable(true);
+      mainWindow.setIgnoreMouseEvents(false);
+    } else if (!mainWindow.isFocusable()) {
       mainWindow.setFocusable(true);
       mainWindow.setIgnoreMouseEvents(false);
     } else {
-      // If visible and not focusable (overlay mode), restore to focusable
-      if (!mainWindow.isFocusable()) {
-        mainWindow.setFocusable(true);
-        mainWindow.setIgnoreMouseEvents(false);
-      } else {
-        mainWindow.hide();
-      }
+      mainWindow.hide();
     }
   });
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {
@@ -67,4 +84,4 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
-}); 
+});
