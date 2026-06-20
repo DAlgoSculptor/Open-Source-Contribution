@@ -61,15 +61,18 @@ The release workflow will build the Windows installer and attach it to the relea
 
 ## Usage
 
-1. Launch the app.
+1. Launch the app (check the system tray if the window is hidden).
 2. Paste your resume and enter your OpenAI API key.
-3. Click **Start Interview** — the overlay becomes click-through.
-4. Press **Spacebar** (or the mic button) to record a question, then release to get an answer.
-5. Click **Stop** to end the interview and restore normal controls.
-6. Use **Ctrl+Shift+O** anytime to show or hide the overlay.
+3. Click **Start Interview** — the overlay becomes click-through so you can use other apps.
+4. Press **Space** (or **Ctrl+Shift+M**) to start/stop recording a question.
+5. Read the GPT answer in the overlay.
+6. Click **Stop** to end the interview and restore controls.
+7. Use **Ctrl+Shift+O** anytime to show or hide the overlay.
 
 ## Notes
 
 - Your API key is stored in local app storage on your machine only.
+- During an interview, **Space** is captured globally so recording works even in click-through mode.
+- The system tray icon lets you restore the overlay when it is hidden.
 - Screen-sharing protection works on most platforms but may vary by OS and conferencing app.
 - Microphone permission is requested when you start an interview.

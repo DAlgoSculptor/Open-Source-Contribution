@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Cluely-Clone</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Angel – Interview Assistant</title>
   <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
     html, body {
       width: 100%;
       height: 100%;
@@ -11,84 +14,527 @@
       padding: 0;
       background: transparent;
       overflow: hidden;
-      font-family: 'Segoe UI', Arial, sans-serif;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      color: #fff;
+      user-select: none;
     }
-    .drag-region {
+
+    /* ── Drag regions ── */
+    .drag-region   { -webkit-app-region: drag; }
+    .no-drag       { -webkit-app-region: no-drag; }
+
+    /* ── Title bar ── */
+    #title-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 36px;
+      z-index: 100;
       -webkit-app-region: drag;
     }
-    .no-drag {
+
+    /* ── Corner buttons ── */
+    .corner-btn {
+      position: fixed;
+      top: 8px;
+      z-index: 110;
+      width: 28px; height: 28px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.10);
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.18s, transform 0.12s;
       -webkit-app-region: no-drag;
     }
-    #answer-container {
+    .corner-btn:hover { background: rgba(255,255,255,0.22); transform: scale(1.12); }
+    #close-btn  { right: 12px; }
+    #hide-btn   { right: 48px; }
+
+    /* ── Setup panel ── */
+    #setup-panel {
       position: absolute;
-      top: 50px;
-      left: 50%;
-      transform: translateX(-50%);
-      min-width: 400px;
-      max-width: 700px;
-      background: rgba(30, 30, 30, 0.6);
-      color: #fff;
-      border-radius: 16px;
-      box-shadow: 0 4px 32px rgba(0,0,0,0.2);
-      padding: 32px 24px;
-      font-size: 1.3rem;
-      backdrop-filter: blur(8px);
-      z-index: 10;
-      text-align: left;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px 24px;
+      gap: 14px;
     }
-    #start-interview {
-      background: linear-gradient(90deg, #0078d4 0%, #005fa3 100%);
+
+    #setup-card {
+      background: rgba(18, 18, 28, 0.82);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      padding: 28px 32px 22px;
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+    }
+
+    #setup-card h1 {
+      margin: 0 0 4px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: #e8e8ff;
+    }
+
+    #setup-card p.subtitle {
+      margin: 0;
+      font-size: 0.82rem;
+      color: #7878aa;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #9090bb;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    textarea, input[type="password"], input[type="text"] {
+      background: rgba(255,255,255,0.06);
+      color: #e8e8ff;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 0.92rem;
+      font-family: inherit;
+      outline: none;
+      resize: vertical;
+      transition: border-color 0.18s, background 0.18s;
+      -webkit-app-region: no-drag;
+      user-select: text;
+    }
+    textarea:focus, input:focus {
+      border-color: rgba(100,120,255,0.5);
+      background: rgba(255,255,255,0.09);
+    }
+    textarea { min-height: 80px; max-height: 160px; }
+
+    .api-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .api-row input { flex: 1; }
+    #toggle-key-vis {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 8px;
+      color: #9090bb;
+      font-size: 0.75rem;
+      padding: 6px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      -webkit-app-region: no-drag;
+      transition: background 0.15s;
+    }
+    #toggle-key-vis:hover { background: rgba(255,255,255,0.13); }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #5b6bff 0%, #8b5cff 100%);
       color: #fff;
       border: none;
-      padding: 10px 28px;
       border-radius: 10px;
-      font-weight: bold;
-      font-size: 1.08rem;
+      padding: 9px 26px;
+      font-size: 0.95rem;
+      font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,120,212,0.10);
-      transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
-      outline: none;
+      letter-spacing: 0.2px;
+      transition: opacity 0.18s, transform 0.12s, box-shadow 0.18s;
+      box-shadow: 0 2px 14px rgba(91,107,255,0.32);
+      -webkit-app-region: no-drag;
     }
-    #start-interview:hover, #start-interview:focus {
-      background: linear-gradient(90deg, #005fa3 0%, #0078d4 100%);
-      box-shadow: 0 4px 16px rgba(0,120,212,0.18);
-      transform: translateY(-2px) scale(1.03);
+    .btn-primary:hover  { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 22px rgba(91,107,255,0.45); }
+    .btn-primary:active { transform: translateY(0); opacity: 1; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-danger {
+      background: rgba(220, 50, 50, 0.75);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.18s, transform 0.12s;
+      -webkit-app-region: no-drag;
     }
-    #title-bar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 40px;
-      z-index: 25;
-    }
-    .hint {
-      color: #888;
-      font-size: 0.85rem;
+    .btn-danger:hover { background: rgba(220, 50, 50, 0.95); transform: translateY(-1px); }
+
+    #setup-status {
+      min-height: 18px;
+      font-size: 0.82rem;
+      color: #ff6b6b;
       text-align: center;
-      max-width: 500px;
+    }
+
+    .hint-text {
+      font-size: 0.75rem;
+      color: #555577;
+      text-align: center;
+    }
+
+    /* ── Interview overlay ── */
+    #interview-panel {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 44px 20px 20px;
+    }
+
+    #interview-inner {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* Status bar */
+    #interview-statusbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      color: #9090bb;
+      min-height: 24px;
+    }
+
+    #recording-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #ff4040;
+      display: none;
+      box-shadow: 0 0 0 0 rgba(255, 64, 64, 0.6);
+      animation: pulse-dot 1.1s infinite;
+    }
+    @keyframes pulse-dot {
+      0%   { box-shadow: 0 0 0 0   rgba(255,64,64,0.7); }
+      70%  { box-shadow: 0 0 0 8px rgba(255,64,64,0); }
+      100% { box-shadow: 0 0 0 0   rgba(255,64,64,0); }
+    }
+    #recording-dot.active { display: inline-block; }
+
+    /* Answer box */
+    #answer-box {
+      background: rgba(14, 14, 24, 0.78);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 22px 26px;
+      width: 100%;
+      max-height: 58vh;
+      overflow-y: auto;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      color: #dde0ff;
+      box-shadow: 0 4px 36px rgba(0,0,0,0.4);
+      transition: border-color 0.3s, box-shadow 0.3s;
+      -webkit-app-region: no-drag;
+      user-select: text;
+      word-break: break-word;
+    }
+    #answer-box.recording {
+      border-color: rgba(100,255,160,0.4);
+      box-shadow: 0 0 0 3px rgba(100,255,160,0.12), 0 4px 36px rgba(0,0,0,0.4);
+    }
+    #answer-box.thinking {
+      border-color: rgba(91,107,255,0.4);
+      box-shadow: 0 0 0 3px rgba(91,107,255,0.12), 0 4px 36px rgba(0,0,0,0.4);
+    }
+    #answer-box::-webkit-scrollbar { width: 5px; }
+    #answer-box::-webkit-scrollbar-track { background: transparent; }
+    #answer-box::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+    /* Placeholder state */
+    .answer-placeholder {
+      color: #44446a;
+      font-style: italic;
+      font-size: 0.95rem;
+    }
+
+    /* Question label */
+    .q-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #6468ff;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    /* Answer text */
+    .answer-text {
+      color: #d8dcff;
+      white-space: pre-wrap;
+    }
+
+    /* Bottom bar */
+    #bottom-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      -webkit-app-region: no-drag;
+    }
+
+    #mic-btn {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      font-size: 1.25rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.18s, border-color 0.18s, transform 0.12s;
+      -webkit-app-region: no-drag;
+    }
+    #mic-btn:hover { background: rgba(255,255,255,0.14); transform: scale(1.07); }
+    #mic-btn.active {
+      background: rgba(80, 220, 130, 0.25);
+      border-color: rgba(80, 220, 130, 0.7);
+    }
+
+    #stop-btn {
+      padding: 9px 22px;
+      background: rgba(220,50,50,0.65);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.18s;
+      -webkit-app-region: no-drag;
+    }
+    #stop-btn:hover { background: rgba(220,50,50,0.9); }
+
+    .shortcut-hint {
+      font-size: 0.73rem;
+      color: #44446a;
+      text-align: center;
+    }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: #6468ff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Scrollbar for setup */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
+
+    /* Auth card styles */
+    #auth-card {
+      background: rgba(18, 18, 28, 0.82);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      padding: 28px 32px 22px;
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+    }
+    .auth-toggle-text {
+      font-size: 0.82rem;
+      color: #9090bb;
+      text-align: center;
+      margin-top: 6px;
+    }
+    .auth-toggle-link {
+      color: #6468ff;
+      cursor: pointer;
+      text-decoration: underline;
+      background: none;
+      border: none;
+      font-size: inherit;
+      font-family: inherit;
+      padding: 0;
+    }
+    .user-badge {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      color: #9090bb;
+      border: 1px solid rgba(255,255,255,0.05);
+      margin-bottom: 6px;
+    }
+    .btn-logout {
+      background: transparent;
+      border: none;
+      color: #ff6b6b;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .btn-logout:hover {
+      background: rgba(220, 50, 50, 0.15);
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <div id="overlay-container" style="position:relative;width:100vw;height:100vh;">
-    <div id="title-bar" class="drag-region"></div>
-    <button id="close-overlay" class="no-drag" title="Hide overlay (Ctrl+Shift+O)" style="position:absolute;top:10px;right:20px;z-index:30;background:rgba(30,30,30,0.7);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">&times;</button>
-    <button id="mic-toggle" class="no-drag" title="Toggle Mic" style="position:absolute;top:10px;right:60px;z-index:30;background:rgba(30,30,30,0.7);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;"><span id="mic-icon" style="display:inline-block;width:18px;height:18px;"><svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-2.08A7 7 0 0 0 19 12z"></path></svg></span></button>
-    <div id="controls" class="controls-section no-drag" style="position:absolute;top:30px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:12px;z-index:20;align-items:center;width:100%;max-width:700px;">
-      <textarea id="resume-text" placeholder="Paste your resume text here" rows="3" style="background:rgba(30,30,30,0.7);color:#fff;border:none;padding:8px 14px;border-radius:8px;width:100%;max-width:500px;resize:vertical;font-size:1rem;"></textarea>
-      <div style="display:flex;gap:12px;width:100%;max-width:500px;align-items:center;justify-content:center;">
-        <input type="password" id="api-key" placeholder="OpenAI API Key" style="background:rgba(30,30,30,0.7);color:#fff;border:none;padding:8px 12px;border-radius:8px;width:200px;font-size:1rem;" />
-        <button id="start-interview" style="background:#0078d4;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:bold;cursor:pointer;">Start Interview</button>
-        <button id="stop-interview" style="background:#d40022;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:bold;cursor:pointer;display:none;">Stop</button>
+
+  <!-- Drag handle -->
+  <div id="title-bar" class="drag-region"></div>
+
+  <!-- Corner buttons (always visible) -->
+  <button id="hide-btn"  class="corner-btn no-drag" title="Hide (Ctrl+Shift+O)">–</button>
+  <button id="close-btn" class="corner-btn no-drag" title="Quit">✕</button>
+
+  <!-- ══════════════ SETUP PANEL ══════════════ -->
+  <div id="setup-panel">
+    <!-- User setup form (visible when logged in) -->
+    <div id="setup-card" class="no-drag" style="display: none;">
+      <div class="user-badge">
+        <span id="user-email-display">...</span>
+        <button id="logout-btn" class="btn-logout">Sign Out</button>
       </div>
-      <div id="status-indicator" style="margin-top:4px;color:#b0b0b0;font-size:0.98rem;min-height:20px;text-align:center;width:100%;max-width:500px;"></div>
-      <p class="hint">Toggle overlay: Ctrl+Shift+O · Record: Spacebar or mic button</p>
+
+      <div>
+        <h1>Angel — Interview Assistant</h1>
+        <p class="subtitle">Your resume and API key are synced to your cloud profile.</p>
+      </div>
+
+      <div class="field-group">
+        <label for="resume-input">Your Resume</label>
+        <textarea id="resume-input" placeholder="Paste your full resume here — education, experience, skills…" rows="5"></textarea>
+      </div>
+
+      <div class="field-group">
+        <label for="api-key-input">OpenAI API Key</label>
+        <div class="api-row">
+          <input type="password" id="api-key-input" placeholder="sk-…" autocomplete="off" spellcheck="false" />
+          <button id="toggle-key-vis">Show</button>
+        </div>
+      </div>
+
+      <div id="setup-status"></div>
+
+      <div class="action-row">
+        <button id="start-btn" class="btn-primary">▶ Start Interview</button>
+      </div>
+
+      <p class="hint-text">Ctrl+Shift+O to show / hide · Space or Ctrl+Shift+M to record</p>
     </div>
-    <div id="answer-outer" style="display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;position:absolute;top:0;left:0;pointer-events:none;">
-      <div id="answer-container" class="no-drag" style="max-height:80vh;overflow-y:auto;word-break:break-word;padding:32px 24px;font-size:1.15rem;line-height:1.6;min-width:400px;max-width:700px;background:rgba(30,30,30,0.6);color:#fff;border-radius:16px;box-shadow:0 4px 32px rgba(0,0,0,0.2);backdrop-filter:blur(8px);z-index:10;text-align:left;display:block;pointer-events:auto;">Ask a question...</div>
+
+    <!-- Auth Card (visible when logged out) -->
+    <div id="auth-card" class="no-drag" style="display: none;">
+      <div>
+        <h1>Angel — SaaS Portal</h1>
+        <p class="subtitle" id="auth-subtitle">Log in to sync your resume and API key securely to the cloud.</p>
+      </div>
+
+      <div class="field-group">
+        <label for="auth-email">Email Address</label>
+        <input type="text" id="auth-email" placeholder="you@example.com" autocomplete="email" />
+      </div>
+
+      <div class="field-group">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+
+      <div id="auth-status" style="min-height: 18px; font-size: 0.82rem; color: #ff6b6b; text-align: center;"></div>
+
+      <div class="action-row">
+        <button id="auth-primary-btn" class="btn-primary">Log In</button>
+      </div>
+
+      <div class="auth-toggle-text">
+        <span id="auth-toggle-msg">Don't have an account?</span>
+        <button id="auth-toggle-btn" class="auth-toggle-link">Sign Up</button>
+      </div>
     </div>
   </div>
+
+  <!-- ══════════════ INTERVIEW PANEL ══════════════ -->
+  <div id="interview-panel">
+    <div id="interview-inner">
+
+      <div id="interview-statusbar">
+        <span id="recording-dot"></span>
+        <span id="status-text">Ready — press Space or the mic button to record a question</span>
+      </div>
+
+      <div id="answer-box">
+        <div class="answer-placeholder">Listening for questions…</div>
+      </div>
+
+      <div id="bottom-bar">
+        <button id="mic-btn" title="Toggle recording (Space)">
+          <!-- Mic SVG -->
+          <svg id="mic-svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+            <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-2.08A7 7 0 0 0 17 12z"/>
+          </svg>
+          <!-- Stop-record (square) shown while recording -->
+          <svg id="stop-svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" style="display:none;">
+            <rect x="5" y="5" width="14" height="14" rx="2"/>
+          </svg>
+        </button>
+
+        <button id="stop-btn">■ Stop Interview</button>
+      </div>
+
+      <p class="shortcut-hint">Space · Ctrl+Shift+M to record · Ctrl+Shift+O to hide</p>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
 </body>
 </html>
